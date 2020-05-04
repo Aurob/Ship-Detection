@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Ship Detection - YoloV3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+
+    <!-- A Bing Maps API key is required for this application to work.
+         Retrieve a key from: https://www.bingmapsportal.com/
+     -->
+    <script type='text/javascript' 
+            src='https://www.bing.com/api/maps/mapcontrol?callback=GetMap&key=API_KEY' 
+            async defer>
+    </script>
+
+    <style>
+      html, body{
+        width: 100%;
+        height: 100%;
+        margin: 0 auto;
+        font-family: 'Roboto';
+        background-color: slategray;
+      }
+      #content{
+        margin: 0 auto;
+        width: 500px;
+        padding-top: 2em;
+        text-align: center;
+      }
+      table{
+        width: 500px;
+        text-align: center;
+        border: dashed;
+      }
+      td{
+        border: solid 1px;
+      }
+      .loader {
+        margin-top: 250px;
+        z-index: 1;
+        width: 5em;
+        height: 5em;
+        -webkit-animation: spin 2s linear infinite; /* Safari */
+        animation: spin 2s linear infinite;
+      }
+      #myMap{
+        z-index: 0;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      /* for Safari */
+      @-webkit-keyframes spin {
+        0% { -webkit-transform: rotate(0deg); }
+        100% { -webkit-transform: rotate(360deg); }
+      }
+      
+    </style>  
+  </head>
+  <body>
+    <div id="content">
+      <h1>Ship Detection</h1>
+      <div id="myMap" style='position:relative;width:500px;height:500px;'>
+        <img class="loader" src="https://robauis.me/ship_detection/ship.png">
+      </div>
+      
+      <table width="600"><tbody>
+        <tr>
+          <td>
+            <button onclick="detect()">Detect</button>
+          </td>
+          <td>
+            <button onclick="clear_pins()">Clear</button>
+          </td>
+          <td>Keep Pins: <input id="pins" type="checkbox"></td>
+        </tr>
+        <tr>
+          <td colspan="3"><input id="key" style="width:100%" placeholder="Bing Maps API Key" stype="text"></td>
+        </tr>
+      </tbody></table>
+    </div>
+    
+
+    <script type="text/javascript">
+      var map;
+      function GetMap(){
+        map = new Microsoft.Maps.Map('#myMap');
+        map.setView({
+            mapTypeId: Microsoft.Maps.MapTypeId.aerial,
+            center: new Microsoft.Maps.Location(1.2877, 103.9679),
+            zoom: 18
+        });
+        map.setOptions({
+          showLocateMeButton: false, 
+          showMapTypeSelector: false, 
+          navigationBarMode: Microsoft.Maps.NavigationBarMode.minified
+          });
+      }
+
+      function clear_pins(){
+        map.entities.clear();
+      }
+
+      function pixel_2_latlon(ship){
+        //Create custom Pushpin
+        let data = map.tryPixelToLocation(new Microsoft.Maps.Point(ship.cx - 250, ship.cy - 250));
+        let data1 = map.tryPixelToLocation(new Microsoft.Maps.Point(ship.x - 250, ship.y - 250));
+        let data2 = map.tryPixelToLocation(new Microsoft.Maps.Point((ship.x + ship.w) - 250, ship.y - 250));
+        let data3 = map.tryPixelToLocation(new Microsoft.Maps.Point((ship.x + ship.w) - 250, (ship.y + ship.h) - 250));
+        let data4 = map.tryPixelToLocation(new Microsoft.Maps.Point(ship.x - 250, (ship.y + ship.h) - 250));
+
+        var exteriorRing = [
+          new Microsoft.Maps.Location(data1.latitude, data1.longitude),
+          new Microsoft.Maps.Location(data2.latitude, data2.longitude),
+          new Microsoft.Maps.Location(data3.latitude, data3.longitude),
+          new Microsoft.Maps.Location(data4.latitude, data4.longitude),
+          new Microsoft.Maps.Location(data1.latitude, data1.longitude)
+        ];
+
+        //Create a polygon
+        var polygon = new Microsoft.Maps.Polygon(exteriorRing, {
+            fillColor: 'rgba(0, 0, 0, 0.0)',
+            strokeColor: 'red',
+            strokeThickness: 2
+        });
+        let data5 = map.tryPixelToLocation(new Microsoft.Maps.Point((ship.x+(ship.w/2)) - 250, ship.y - 250));
+        Microsoft.Maps.Events.addHandler(polygon, 'click', function () { 
+          var infobox = new Microsoft.Maps.Infobox(new Microsoft.Maps.Location(data5.latitude, data5.longitude), {
+              title: "Latitude: "+data.latitude+"\nLongitude: "+data.longitude,
+              description: "Confidence: "+ship.conf
+          });
+          infobox.setMap(map);
+        });
+        map.entities.push(polygon);
+
+        
+      }
+
+      var pin_option = document.getElementById('pins');
+      var weights = document.getElementById('weights');
+      var key_input = document.getElementById('key');
+      var loader = document.getElementsByClassName('loader')[0];
+      loader.hidden = true;
+
+      let api_start = "http://dev.virtualearth.net/REST/v1/Imagery/Map/Aerial/";
+      let api_mid = "?mapSize=500,500";
+
+      function detect(){
+        loader.hidden = false;
+        map.setOptions({disablePanning: true, disableZooming: true});
+
+        let url = 
+          api_start+
+          String(map.getBounds().center.latitude)+
+          ','+
+          String(map.getBounds().center.longitude)+
+          '/'+map.getZoom()+
+          api_mid;
+
+        let key = '';
+        var oReq = new XMLHttpRequest();
+
+        const python_server = "http://localhost:10001";
+        oReq.open("POST", python_server);
+        oReq.setRequestHeader('Content-Type', 'text/plain');
+        oReq.onreadystatechange = function (oEvent) {
+            if(oEvent.target.response){
+              res = eval(oEvent.target.response);
+              if(key != res[res.length-1]){ //eliminates duplicate responses
+                console.log(res);
+                key = res[res.length-1];
+                if(res[0].error){
+                  alert("Invalid API Key provided\nVisit https://www.bingmapsportal.com/ to retrieve a key");
+                }
+                else{
+                  if(!pin_option.checked) clear_pins();
+                  for(var s = 0; s < res.length - 1; s++){
+                    ship = res[s];
+                    console.log(ship);
+                    pixel_2_latlon(ship);
+                  }
+                }
+              }
+            }
+            loader.hidden = true;
+            map.setOptions({disablePanning: false, disableZooming: false});
+        };
+        oReq.send("DATA:"+JSON.stringify({'key' : key_input.value, 'weight': weights.selectedIndex, 'data' : url}));
+      }
+    </script> 
+  </body>
