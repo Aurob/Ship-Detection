@@ -6,3 +6,4 @@ Each image contained 1-30 ships at varying scales. Locations included at sea, in
 
 The images and annotations can be found here: https://drive.google.com/drive/folders/1iN9oc_WDZFmCYVvfM_xLbFteMsSFW-Md?usp=sharing
 
+![Model applied to Bing Maps Imagery](https://raw.githubusercontent.com/Aurob/Ship-Detection/master/data/pasted%20image%200.png)
