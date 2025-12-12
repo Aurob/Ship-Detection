@@ -79,7 +79,7 @@ def detect(img, width, height):
 
 if len(sys.argv) > 1:
     #request data
-    key = "AlVUTrENvRYkOVi5K3PVdyxritBA0U6Vt2hfTuqhBVqOaGo9PRDfckJN94LRjQD1" #post['key']
+    key = "" #post['key']
     data = sys.argv[1]+"&key="+key
     
     res = process(data)
